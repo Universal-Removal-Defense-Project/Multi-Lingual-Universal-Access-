@@ -1,10 +1,17 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .dates import parse_date_string
-from .models import IntakeSubmission
+from .models import (
+    HEARING_SOON_DAYS,
+    IntakeApplication,
+    IntakeEntry,
+    IntakeFamilyMember,
+    IntakeSubmission,
+)
 
 
 def valid_submission(**overrides):
@@ -140,3 +147,64 @@ class IntakeTranslationRenderingTests(TestCase):
         response = self.client.get(reverse('intake_form'), headers={'Accept-Language': 'es'})
 
         self.assertContains(response, 'Información personal')
+
+
+class IntakeApplicationModelTests(TestCase):
+    """The I-589 application models (Issue #41). Flow and form tests come with the view."""
+
+    def test_str_of_every_model_carries_no_applicant_data(self):
+        application = IntakeApplication.objects.create(
+            last_name='Ejemplo', first_name='Maria', preferred_language='Spanish'
+        )
+        entry = IntakeEntry.objects.create(application=application, place='El Paso')
+        member = IntakeFamilyMember.objects.create(
+            application=application, relationship='child', last_name='Ejemplo'
+        )
+
+        expected = {
+            application: f'Application {application.pk}',
+            entry: f'Entry {entry.pk}',
+            member: f'Family member {member.pk}',
+        }
+        for instance, label in expected.items():
+            with self.subTest(model=type(instance).__name__):
+                self.assertEqual(str(instance), label)
+                # A repr reaches tracebacks and admin logs, so it must never name a person.
+                for applicant_value in ('Ejemplo', 'Maria', 'El Paso'):
+                    self.assertNotIn(applicant_value, str(instance))
+
+    def test_deleting_an_application_removes_its_child_rows(self):
+        application = IntakeApplication.objects.create()
+        IntakeEntry.objects.create(application=application)
+        IntakeFamilyMember.objects.create(application=application, relationship='spouse')
+
+        application.delete()
+
+        self.assertEqual(IntakeEntry.objects.count(), 0)
+        self.assertEqual(IntakeFamilyMember.objects.count(), 0)
+
+    def test_hearing_is_soon_only_inside_the_window(self):
+        today = timezone.localdate()
+        cases = [
+            (None, False),
+            (today - timedelta(days=1), False),
+            (today, True),
+            (today + timedelta(days=HEARING_SOON_DAYS), True),
+            (today + timedelta(days=HEARING_SOON_DAYS + 1), False),
+        ]
+
+        for hearing_date, expected in cases:
+            with self.subTest(next_hearing_date=hearing_date):
+                application = IntakeApplication(next_hearing_date=hearing_date)
+                self.assertIs(application.hearing_is_soon, expected)
+
+    def test_the_legacy_submission_model_is_untouched(self):
+        # Issue #41: the new models live alongside IntakeSubmission, they do not replace it.
+        self.assertEqual(IntakeSubmission.objects.count(), 0)
+        submission = IntakeSubmission.objects.create(
+            full_name='Legacy Applicant',
+            country_of_origin='Venezuela',
+            preferred_language='Spanish',
+            fear_of_return_summary='Unchanged.',
+        )
+        self.assertEqual(str(submission), 'Legacy Applicant')
