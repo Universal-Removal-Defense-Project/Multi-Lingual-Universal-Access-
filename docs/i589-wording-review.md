@@ -40,8 +40,9 @@ blank to add nothing.
   so the hint is redundant; strike it in the Help text column if you want it dropped.
 - Four A.II items are worded differently for spouse and child. Both wordings are listed; the
   spouse row shows the spouse wording and the child rows show the child wording.
-- Two step headings (steps 2 and 6) and the small set of button labels at the end are the only
-  strings that are not I-589 text.
+- Two step headings (steps 2 and 6), the step 1 intro, and the small set of button labels at the
+  end are the only strings that are not I-589 text. The intro says the intake *follows* Form
+  I-589, not that the applicant is filing one.
 
 Mark decisions in the last column: **OK**, **change to: ...**, or **drop**.
 
@@ -223,6 +224,8 @@ Small, authored, applicant-visible. Listed so nothing applicant-facing escapes r
 
 | Where | String |
 |---|---|
+| Intro title, step 1 only (the form's official name) | Form I-589, Application for Asylum and for Withholding of Removal |
+| Intro text, step 1 only | This intake follows Form I-589, the U.S. government form used to apply for asylum and for withholding of removal. It asks about you, your family, how you came to the United States, and why you fear returning to your home country. URDP uses your answers to review your case and prepare your application. Answer what you can. You may leave a question blank if you do not know the answer. |
 | Progress line | Step N of 6 |
 | Buttons | Back, Continue, Submit Intake Securely (existing), Add another entry, Add another child, Remove |
 | Field badges | Required, Optional (existing) |
