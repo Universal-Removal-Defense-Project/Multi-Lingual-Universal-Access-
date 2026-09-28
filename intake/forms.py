@@ -3,6 +3,10 @@ from django.utils.translation import gettext_lazy as _
 
 from .models import IntakeApplication, IntakeEntry, IntakeFamilyMember, IntakeSubmission
 
+# Translators: Django's own invalid-date error. Restated here so makemessages keeps the
+# Haitian Creole entry: Django ships no ht message catalog, so this project supplies it.
+INVALID_DATE_MESSAGE = _('Enter a valid date.')
+
 
 class IntakeSubmissionForm(forms.ModelForm):
     consent_acknowledged = forms.BooleanField(
@@ -144,6 +148,8 @@ class IntakeSubmissionForm(forms.ModelForm):
             if name == 'consent_acknowledged':
                 continue
             field.error_messages['required'] = _('This information is required.')
+            if isinstance(field, forms.DateField):
+                field.error_messages['invalid'] = INVALID_DATE_MESSAGE
 
 
 # --- I-589 intake application (Issue #41) -------------------------------------------------
@@ -171,6 +177,7 @@ class _ApplicantModelForm(forms.ModelForm):
                 field.widget = forms.RadioSelect(choices=[c for c in field.choices if c[0]])
             elif isinstance(field, forms.DateField):
                 field.widget = forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'})
+                field.error_messages['invalid'] = INVALID_DATE_MESSAGE
             elif isinstance(field.widget, (forms.TextInput, forms.EmailInput, forms.Textarea)):
                 # Applicants type in their own script, whatever the interface language.
                 field.widget.attrs['dir'] = 'auto'
