@@ -38,6 +38,15 @@ generation command is in `.env.example`. All other defaults work as-is.
 | `http://localhost:8000/asylum-intake/` | Applicant intake form |
 | `http://localhost:8000/dashboard/` | Case manager dashboard (staff) |
 | `http://localhost:8000/admin` | Django admin (superusers) |
+| `http://localhost:8000/intake-form/` | New multi-step intake (I-589 structure). Not linked yet: pending wording and attorney review |
+
+**Clear expired sessions on a schedule.** The multi-step intake keeps an applicant's unsubmitted
+answers in their session for up to two hours after the last completed step. Django never deletes
+expired session rows by itself, so any deployment must run this regularly (cron, daily or more often):
+
+```bash
+python manage.py clearsessions
+```
 
 **Create an admin account:**
 
