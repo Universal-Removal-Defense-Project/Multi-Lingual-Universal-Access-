@@ -1,6 +1,8 @@
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.contrib.admin.models import LogEntry
+from django.contrib.auth import get_user_model
 from django.contrib.sessions.models import Session
 from django.core.management import call_command
 from django.test import TestCase
@@ -465,3 +467,79 @@ class ApplicationRenderingTests(TestCase):
             with self.subTest(location=location):
                 self.assertRegex(location, r'^/(intake-form/\d/|intake-success/)$')
                 self.assertNotIn('Ejemplo', location)
+
+
+# --- Django admin for the application (Issue #44) -----------------------------------------
+
+
+class IntakeApplicationAdminTests(TestCase):
+    def setUp(self):
+        self.client.force_login(
+            get_user_model().objects.create_superuser('root', password='not-a-real-password')
+        )
+        self.application = IntakeApplication.objects.create(
+            last_name='Ejemplo',
+            first_name='Maria',
+            preferred_language='Spanish',
+            experienced_harm_explanation='Palabras originales.',
+        )
+        IntakeEntry.objects.create(application=self.application, place='El Paso')
+        IntakeFamilyMember.objects.create(
+            application=self.application, relationship='child', first_name='Primera'
+        )
+
+    def test_changelist_lists_applications(self):
+        response = self.client.get(reverse('admin:intake_intakeapplication_changelist'))
+
+        self.assertContains(response, 'Ejemplo')
+
+    def test_change_page_shows_sections_and_inline_rows(self):
+        response = self.client.get(
+            reverse('admin:intake_intakeapplication_change', args=[self.application.pk])
+        )
+
+        self.assertContains(response, 'Palabras originales.')
+        self.assertContains(response, 'Staff translations')
+        self.assertContains(response, 'value="El Paso"')
+        self.assertContains(response, 'value="Primera"')
+
+    def test_superuser_can_edit_an_application_and_its_rows(self):
+        entry = self.application.entries.get()
+        url = reverse('admin:intake_intakeapplication_change', args=[self.application.pk])
+        data = {
+            'last_name': 'Ejemplo',
+            'first_name': 'Maria',
+            'preferred_language': 'Spanish',
+            'language_preference': 'en',
+            'status': 'accepted',
+            'a_number': 'A123456789',
+            'experienced_harm_explanation': 'Palabras originales.',
+            'experienced_harm_explanation_translated': 'Original words.',
+            'entries-TOTAL_FORMS': '2',
+            'entries-INITIAL_FORMS': '1',
+            'entries-0-id': str(entry.pk),
+            'entries-0-application': str(self.application.pk),
+            'entries-0-position': '0',
+            'entries-0-place': 'El Paso',
+            'entries-1-position': '1',
+            'entries-1-place': 'Miami',
+            'family_members-TOTAL_FORMS': '0',
+            'family_members-INITIAL_FORMS': '0',
+        }
+
+        response = self.client.post(url, data)
+
+        self.assertRedirects(response, reverse('admin:intake_intakeapplication_changelist'))
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.a_number, 'A123456789')
+        self.assertEqual(self.application.status, 'accepted')
+        # The staff translation lands beside the original, never over it.
+        self.assertEqual(self.application.experienced_harm_explanation, 'Palabras originales.')
+        self.assertEqual(
+            self.application.experienced_harm_explanation_translated, 'Original words.'
+        )
+        self.assertEqual(
+            list(self.application.entries.values_list('place', flat=True)), ['El Paso', 'Miami']
+        )
+        # The admin log names the row by pk only, as __str__ promises.
+        self.assertEqual(LogEntry.objects.get().object_repr, f'Application {self.application.pk}')
