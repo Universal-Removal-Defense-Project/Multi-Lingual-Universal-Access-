@@ -4,18 +4,22 @@ from django.forms import CheckboxInput
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import translation
+from django.views.decorators.http import require_POST
 
 from .forms import APPLICATION_STEPS, IntakeSubmissionForm
 from .models import IntakeApplication
+from .sessions import APPLICATION_SESSION_KEY
 
 SUPPORTED_LANGUAGE_CODES = {code for code, _name in settings.LANGUAGES}
 
-APPLICATION_SESSION_KEY = 'intake_application'
-# Unsubmitted answers live in the session store until final submit. Each completed step
-# saves the session and restarts this clock, so a stalled draft is gone two hours after the
-# last completed step (once `clearsessions` runs). It applies to the whole browser session:
-# a case manager who walks the form in their dashboard browser gets a two-hour login too.
-APPLICATION_SESSION_TTL = 2 * 60 * 60
+# Unsubmitted answers live in the session until final submit. Every request to the form
+# restarts this clock, so after 20 minutes without activity Django treats the session as
+# gone and the form comes back empty: the next person on the same browser never sees it.
+# The database row itself is deleted by `clearsessions` (run every 15 minutes by the
+# session-cleanup service in docker-compose.yml). The cookie also ends when the browser
+# closes; see intake/sessions.py. This applies to the whole browser session, so a case
+# manager who walks the form in their dashboard browser gets the same short login.
+APPLICATION_SESSION_TTL = 20 * 60
 
 
 def _valid_language(code: str | None) -> str:
@@ -132,8 +136,7 @@ def application_step(request: HttpRequest, step: int) -> HttpResponse:
     for earlier in range(1, step):
         if str(earlier) not in stored:
             return redirect('application_step', step=earlier)
-    if step == 1 and not stored:
-        request.session.set_expiry(APPLICATION_SESSION_TTL)
+    request.session.set_expiry(APPLICATION_SESSION_TTL)
 
     errors = []
     if request.method == 'POST':
@@ -173,6 +176,13 @@ def application_step(request: HttpRequest, step: int) -> HttpResponse:
             'selected_language': translation.get_language(),
         },
     )
+
+
+@require_POST
+def application_clear(request: HttpRequest) -> HttpResponse:
+    """Start over: drop every stored answer, for an applicant walking away from the device."""
+    request.session.pop(APPLICATION_SESSION_KEY, None)
+    return redirect('application_step', step=1)
 
 
 def _save_application(request: HttpRequest, stored: dict) -> HttpResponse:

@@ -571,6 +571,24 @@ button.add-row {
 
 .back-link { color: var(--accent-deep); font-weight: 600; }
 
+.privacy-timeout {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-faint);
+  margin: -8px 0 14px;
+}
+
+button.clear-answers {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .visually-hidden {
   position: absolute;
   inline-size: 1px;

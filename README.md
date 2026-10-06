@@ -40,9 +40,11 @@ generation command is in `.env.example`. All other defaults work as-is.
 | `http://localhost:8000/admin` | Django admin (superusers) |
 | `http://localhost:8000/intake-form/` | New multi-step intake (I-589 structure). Not linked yet: pending wording and attorney review |
 
-**Clear expired sessions on a schedule.** The multi-step intake keeps an applicant's unsubmitted
-answers in their session for up to two hours after the last completed step. Django never deletes
-expired session rows by itself, so any deployment must run this regularly (cron, daily or more often):
+**Expired sessions are cleared every 15 minutes.** The multi-step intake keeps an applicant's
+unsubmitted answers in their session until 20 minutes without activity, or until the browser
+closes. Django never deletes expired session rows by itself, so the `session-cleanup` service in
+`docker-compose.yml` runs `clearsessions` every 15 minutes. Any host that doesn't use this compose
+file must schedule the same command itself:
 
 ```bash
 python manage.py clearsessions

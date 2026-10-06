@@ -8,4 +8,5 @@ urlpatterns = [
     # Unlinked until attorney sign-off (#41); reachable by direct URL only.
     path('intake-form/', views.application_start, name='application_start'),
     path('intake-form/<int:step>/', views.application_step, name='application_step'),
+    path('intake-form/clear/', views.application_clear, name='application_clear'),
 ]

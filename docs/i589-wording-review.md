@@ -227,6 +227,8 @@ Small, authored, applicant-visible. Listed so nothing applicant-facing escapes r
 | Intro title, step 1 only (the form's official name) | Form I-589, Application for Asylum and for Withholding of Removal |
 | Intro text, step 1 only | This intake follows Form I-589, the U.S. government form used to apply for asylum and for withholding of removal. It asks about you, your family, how you came to the United States, and why you fear returning to your home country. URDP uses your answers to review your case and prepare your application. Answer what you can. You may leave a question blank if you do not know the answer. |
 | Progress line | Step N of 6 |
+| Privacy line, under the progress line | For your privacy, your answers are cleared after 20 minutes without activity or when you close your browser. |
+| Button, every step | Start over and clear my answers |
 | Buttons | Back, Continue, Submit Intake Securely (existing), Add another entry, Add another child, Remove |
 | Field badges | Required, Optional (existing) |
 | Yes / No controls | Yes, No |

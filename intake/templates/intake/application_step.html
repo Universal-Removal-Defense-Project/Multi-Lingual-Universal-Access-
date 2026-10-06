@@ -74,6 +74,7 @@
     </div>
 
     <p class="progress">{% blocktranslate trimmed %}Step {{ step }} of {{ step_count }}{% endblocktranslate %}</p>
+    <p class="privacy-timeout">{% translate "For your privacy, your answers are cleared after 20 minutes without activity or when you close your browser." %}</p>
 
     {% if errors %}
       <div class="form-error-summary" role="alert" aria-labelledby="form-errors-title">
@@ -140,6 +141,11 @@
       {% if step > 1 %}
         <p><a class="back-link" href="{% url 'application_step' step=step|add:'-1' %}">{% translate "Back" %}</a></p>
       {% endif %}
+      <p>
+        <button type="submit" class="clear-answers" formaction="{% url 'application_clear' %}" formnovalidate>
+          {% translate "Start over and clear my answers" %}
+        </button>
+      </p>
     </div>
 
   </form>
@@ -154,6 +160,7 @@
     var status = document.getElementById("submission-status");
 
     form.addEventListener("submit", function (e) {
+      if (e.submitter && e.submitter.classList.contains("clear-answers")) return;
       button.disabled = true;
       button.setAttribute("aria-disabled", "true");
       form.setAttribute("aria-busy", "true");

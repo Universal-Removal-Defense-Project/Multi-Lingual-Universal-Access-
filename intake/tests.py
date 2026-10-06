@@ -410,7 +410,7 @@ class ApplicationSubmitTests(TestCase):
 
     def test_unsubmitted_answers_expire_with_the_session(self):
         complete_through(self.client, 1)
-        self.assertEqual(self.client.session.get_expiry_age(), 2 * 60 * 60)
+        self.assertEqual(self.client.session.get_expiry_age(), 20 * 60)
 
         Session.objects.update(expire_date=timezone.now() - timedelta(minutes=1))
         call_command('clearsessions')
@@ -418,6 +418,45 @@ class ApplicationSubmitTests(TestCase):
         self.assertEqual(Session.objects.count(), 0)
         self.assertRedirects(self.client.get(step_url(2)), step_url(1))
         self.assertEqual(IntakeApplication.objects.count(), 0)
+
+    def test_every_visit_restarts_the_inactivity_clock(self):
+        complete_through(self.client, 1)
+        Session.objects.update(expire_date=timezone.now() + timedelta(minutes=1))
+
+        self.client.get(step_url(2))
+
+        remaining = Session.objects.get().expire_date - timezone.now()
+        self.assertGreater(remaining, timedelta(minutes=19))
+
+    def test_an_expired_draft_is_never_shown_to_the_next_visitor(self):
+        complete_through(self.client, 2)
+        # Expired but not yet cleaned up: the row still holds the answers.
+        Session.objects.update(expire_date=timezone.now() - timedelta(minutes=1))
+
+        self.assertRedirects(self.client.get(step_url(2)), step_url(1))
+        response = self.client.get(step_url(1))
+        self.assertNotContains(response, 'Ejemplo')
+
+    def test_draft_cookie_ends_when_the_browser_closes(self):
+        response = self.client.post(step_url(1), valid_step(1))
+
+        cookie = response.cookies[settings.SESSION_COOKIE_NAME]
+        self.assertEqual(cookie['max-age'], '')
+        self.assertEqual(cookie['expires'], '')
+        # The server copy still expires on the short clock, not after two weeks.
+        self.assertEqual(self.client.session.get_expiry_age(), 20 * 60)
+
+    def test_clear_button_drops_every_stored_answer(self):
+        complete_through(self.client, 3)
+
+        response = self.client.post(reverse('application_clear'))
+
+        self.assertRedirects(response, step_url(1))
+        self.assertNotIn('intake_application', self.client.session)
+        self.assertNotContains(self.client.get(step_url(1)), 'Ejemplo')
+
+    def test_clear_is_post_only(self):
+        self.assertEqual(self.client.get(reverse('application_clear')).status_code, 405)
 
 
 class ApplicationRenderingTests(TestCase):
