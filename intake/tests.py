@@ -580,5 +580,102 @@ class IntakeApplicationAdminTests(TestCase):
         self.assertEqual(
             list(self.application.entries.values_list('place', flat=True)), ['El Paso', 'Miami']
         )
-        # The admin log names the row by pk only, as __str__ promises.
+        # The admin log names the row by primary key only, as __str__ promises.
         self.assertEqual(LogEntry.objects.get().object_repr, f'Application {self.application.pk}')
+
+
+class ANumberLookupAdminTests(TestCase):
+    """PR #48 review: an A-number must never reach a URL, browser history or access log."""
+
+    def setUp(self):
+        self.client.force_login(
+            get_user_model().objects.create_superuser('root', password='not-a-real-password')
+        )
+        self.find_url = reverse('admin:intake_intakeapplication_find_by_a_number')
+        self.changelist = reverse('admin:intake_intakeapplication_changelist')
+
+    def make_application(self, a_number):
+        return IntakeApplication.objects.create(
+            last_name='Ejemplo', first_name='Maria', preferred_language='Spanish', a_number=a_number
+        )
+
+    def test_url_search_no_longer_matches_on_a_number(self):
+        self.make_application('A123456789')
+
+        response = self.client.get(self.changelist, {'q': '123456789'})
+
+        self.assertContains(response, '0 intake applications')
+
+    def test_one_match_opens_the_record_and_keeps_the_a_number_out_of_the_url(self):
+        application = self.make_application('A123456789')
+
+        response = self.client.post(self.find_url, {'a_number': 'A123456789'})
+
+        self.assertRedirects(
+            response,
+            reverse('admin:intake_intakeapplication_change', args=[application.pk]),
+        )
+        self.assertNotIn('123456789', response['Location'])
+
+    def test_a_number_matches_whatever_the_formatting(self):
+        application = self.make_application('A-123 456 789')
+
+        response = self.client.post(self.find_url, {'a_number': '123456789'})
+
+        self.assertRedirects(
+            response,
+            reverse('admin:intake_intakeapplication_change', args=[application.pk]),
+        )
+
+    def test_several_matches_list_them_by_primary_key_only(self):
+        first = self.make_application('A123456789')
+        second = self.make_application('123-456-789')
+
+        response = self.client.post(self.find_url, {'a_number': 'a123456789'})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], f'{self.changelist}?id__in={first.pk},{second.pk}')
+        self.assertContains(self.client.get(response['Location']), '2 intake applications')
+
+    def test_no_match_shows_a_message_and_stays_on_the_list(self):
+        response = self.client.post(self.find_url, {'a_number': 'A999999999'}, follow=True)
+
+        self.assertRedirects(response, self.changelist)
+        self.assertContains(response, 'No record found for that A-number.')
+
+    def test_lookup_is_post_only(self):
+        self.assertEqual(self.client.get(self.find_url).status_code, 405)
+
+    def test_non_staff_users_are_sent_to_login(self):
+        self.client.logout()
+        self.client.force_login(get_user_model().objects.create_user('visitor'))
+
+        response = self.client.post(self.find_url, {'a_number': 'A123456789'})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('admin:login'), response['Location'])
+        self.assertNotIn('123456789', response['Location'])
+
+    def test_changelist_shows_the_lookup_box(self):
+        response = self.client.get(self.changelist)
+
+        self.assertContains(response, f'action="{self.find_url}"')
+        self.assertContains(response, 'method="post"')
+
+    def test_legacy_submission_admin_has_the_same_lookup(self):
+        submission = IntakeSubmission.objects.create(
+            full_name='Legacy Applicant',
+            country_of_origin='Venezuela',
+            preferred_language='Spanish',
+            fear_of_return_summary='Unchanged.',
+            a_number='A123456789',
+        )
+        changelist = reverse('admin:intake_intakesubmission_changelist')
+
+        self.assertContains(self.client.get(changelist, {'q': '123456789'}), '0 intake submissions')
+        response = self.client.post(
+            reverse('admin:intake_intakesubmission_find_by_a_number'), {'a_number': '123456789'}
+        )
+        self.assertRedirects(
+            response, reverse('admin:intake_intakesubmission_change', args=[submission.pk])
+        )

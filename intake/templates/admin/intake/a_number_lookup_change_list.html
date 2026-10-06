@@ -1,0 +1,16 @@
+{% extends "admin/change_list.html" %}
+{% load admin_urls %}
+
+{% block search %}
+  {{ block.super }}
+  {# POST, so the A-number never reaches the URL, browser history or access logs. #}
+  {% url cl.opts|admin_urlname:'find_by_a_number' as find_url %}
+  <form method="post" action="{{ find_url }}" id="a-number-lookup">
+    {% csrf_token %}
+    <div>
+      <label for="a-number-lookup-input">Find by A-number</label>
+      <input type="text" name="a_number" id="a-number-lookup-input" autocomplete="off" size="20" />
+      <input type="submit" value="Find" />
+    </div>
+  </form>
+{% endblock %}
