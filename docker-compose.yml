@@ -21,5 +21,18 @@ services:
       db:
         condition: service_healthy
 
+  # Deletes expired session rows, which hold unsubmitted intake answers. Django never does
+  # this by itself. Overriding the entrypoint skips migrate/compilemessages, so this never
+  # races the web service at start-up.
+  session-cleanup:
+    build: .
+    env_file: .env
+    volumes:
+      - .:/app
+    entrypoint: ["sh", "-c", "while true; do python manage.py clearsessions; sleep 900; done"]
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:

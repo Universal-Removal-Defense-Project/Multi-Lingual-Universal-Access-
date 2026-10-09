@@ -1,0 +1,24 @@
+{% load i18n %}
+{% if field.widget_type == 'checkbox' %}
+  <div class="field full{% if field.errors %} field-error{% endif %}">
+    <label class="check" for="{{ field.id_for_label }}">
+      {{ field }}
+      <span class="ctxt">{{ field.label }}{% if field.field.required %} <span class="req">{% translate "Required" %}</span>{% endif %}</span>
+    </label>
+    {{ field.errors }}
+  </div>
+{% elif field.widget_type == 'radioselect' %}
+  <fieldset class="field full choice{% if field.errors %} field-error{% endif %}">
+    <legend>{{ field.label }} <span class="{% if field.field.required %}req{% else %}opt{% endif %}">{% if field.field.required %}{% translate "Required" %}{% else %}{% translate "Optional" %}{% endif %}</span></legend>
+    {{ field }}
+    {{ field.errors }}
+  </fieldset>
+{% else %}
+  <div class="field{% if field.widget_type == 'textarea' %} full{% endif %}{% if field.errors %} field-error{% endif %}">
+    <label for="{{ field.id_for_label }}">
+      {{ field.label }} <span class="{% if field.field.required %}req{% else %}opt{% endif %}">{% if field.field.required %}{% translate "Required" %}{% else %}{% translate "Optional" %}{% endif %}</span>
+    </label>
+    {{ field }}
+    {{ field.errors }}
+  </div>
+{% endif %}

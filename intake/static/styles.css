@@ -466,6 +466,141 @@ button.submit:focus-visible {
 .submission-status.is-visible { visibility: visible; }
 
 /* =========================================
+   MULTI-STEP APPLICATION (/intake-form)
+   Logical properties only, so RTL needs no override.
+   ========================================= */
+.intro {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  margin-block-start: 30px;
+  box-shadow: var(--shadow);
+}
+
+.intro h2 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.25;
+  margin: 0 0 8px;
+}
+
+.intro p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.progress {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 0 0 14px;
+}
+
+.group-head {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 26px 0 12px;
+  margin-inline-start: 41px;
+}
+
+.block-head + .group-head,
+.repeat:first-of-type .group-head { margin-block-start: 18px; }
+
+.grid + .grid { margin-block-start: 18px; }
+
+fieldset.choice {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+fieldset.choice legend {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0;
+  margin-block-end: 7px;
+}
+
+fieldset.choice > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+}
+
+fieldset.choice label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+fieldset.choice input[type=radio] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.repeat { margin-block-end: 26px; }
+
+.repeat-row {
+  border-block-start: 1px solid var(--line);
+  padding-block: 18px 4px;
+  margin-block-start: 14px;
+}
+
+button.add-row {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  border: 1px solid oklch(0.88 0.04 55);
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  margin-block-start: 14px;
+  margin-inline-start: 41px;
+  cursor: pointer;
+}
+
+.back-link { color: var(--accent-deep); font-weight: 600; }
+
+.privacy-timeout {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-faint);
+  margin: -8px 0 14px;
+}
+
+button.clear-answers {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
+
+/* =========================================
    RTL
    ========================================= */
 [dir="rtl"] .grid { margin-left: 0; margin-right: 41px; }
@@ -485,6 +620,7 @@ button.submit:focus-visible {
   .block-sub { margin-left: 0; }
   [dir="rtl"] .block-sub { margin-right: 0; }
   .safe-note { margin-left: 0; }
+  .group-head, button.add-row { margin-inline-start: 0; }
   [dir="rtl"] .safe-note { margin-right: 0; }
   header.masthead h1 { font-size: 26px; }
   section.block { padding: 20px 18px 22px; }

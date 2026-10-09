@@ -1,0 +1,173 @@
+{% extends "intake/base.html" %}
+{% load static i18n %}
+
+{% block title %}{{ heading }} | {% translate "Universal Removal Defense Project" %}{% endblock %}
+{% block description %}{% translate "Secure multilingual asylum intake form for Universal Removal Defense Project." %}{% endblock %}
+
+{% block body %}
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="logo-chip">
+      <img src="{% static 'images/urdp-logo.png' %}" alt="{% translate 'Universal Removal Defense Project logo' %}" />
+    </div>
+    <h1>{% translate "Universal Removal Defense Project" %}</h1>
+    <p class="tag">{% translate "All Cultures, All Languages." %}</p>
+  </header>
+
+  {% if step == 1 %}
+    {# Says the intake follows the I-589, never that it is one (Christina, #41). #}
+    <section class="intro" aria-labelledby="intro-title">
+      <h2 id="intro-title">{% translate "Form I-589, Application for Asylum and for Withholding of Removal" %}</h2>
+      <p>
+        {% blocktranslate trimmed %}
+          This intake follows Form I-589, the U.S. government form used to apply for asylum
+          and for withholding of removal. It asks about you, your family, how you came to the
+          United States, and why you fear returning to your home country. URDP uses your
+          answers to review your case and prepare your application. Answer what you can. You
+          may leave a question blank if you do not know the answer.
+        {% endblocktranslate %}
+      </p>
+    </section>
+  {% endif %}
+
+  {# Switching language reloads this step; earlier steps stay in the session. #}
+  <form action="{% url 'set_language' %}" method="post" class="langbar">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}" />
+    <div class="langbar-inner">
+      <div class="lb-label">
+        <b>{% translate "Choose your language" %}</b><br />
+        {% translate "You can complete this form in the language that is most comfortable for you." %}
+      </div>
+      <select
+        name="language"
+        aria-label="{% translate 'Language' %}"
+        onchange="this.form.submit();"
+      >
+        {% for language in LANGUAGE_INFO_LIST %}
+          <option
+            value="{{ language.code }}"
+            lang="{{ language.code }}"
+            dir="{% if language.bidi %}rtl{% else %}ltr{% endif %}"
+            {% if language.code == selected_language %}selected{% endif %}
+          >{{ language.name_local }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  <form method="post" id="intake-form">
+    {% csrf_token %}
+    {# Enter in a text box submits with the first button in the form: make that Continue, not "Add another". #}
+    <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true"></button>
+
+    <div class="notice">
+      <div class="ic" aria-hidden="true">i</div>
+      <p>
+        {% blocktranslate trimmed %}
+          Submitting this form <strong>does not</strong> create an attorney-client relationship.
+          URDP must review your intake, complete conflict screening, and provide written
+          acceptance before representation begins.
+        {% endblocktranslate %}
+      </p>
+    </div>
+
+    <p class="progress">{% blocktranslate trimmed %}Step {{ step }} of {{ step_count }}{% endblocktranslate %}</p>
+    <p class="privacy-timeout">{% translate "For your privacy, your answers are cleared after 20 minutes without activity or when you close your browser." %}</p>
+
+    {% if errors %}
+      <div class="form-error-summary" role="alert" aria-labelledby="form-errors-title">
+        <h2 id="form-errors-title">{% translate "Please correct the highlighted information." %}</h2>
+        <ul>
+          {% for field_id, label, error in errors %}
+            <li>{% if field_id %}<a href="#{{ field_id }}">{{ label }}: {{ error }}</a>{% else %}{{ error }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <section class="block" aria-labelledby="step-heading">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">{{ step }}</span>
+        <h2 id="step-heading">{{ heading }}</h2>
+      </div>
+
+      {% for part in forms %}
+        {% if part.is_formset %}
+          <div class="repeat">
+            {{ part.management_form }}
+            <h3 class="group-head">{{ part.heading }}</h3>
+            {% if part.note %}<p class="block-sub">{{ part.note }}</p>{% endif %}
+            {% for error in part.non_form_errors %}<ul class="errorlist"><li>{{ error }}</li></ul>{% endfor %}
+            {% for row in part.forms %}
+              <div class="repeat-row">
+                {% for hidden in row.hidden_fields %}{{ hidden }}{% endfor %}
+                <div class="grid">
+                  {% for field in row.visible_fields %}
+                    {% include "intake/_application_field.html" %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+            {% if part.add_label %}
+              <button type="submit" name="add_row" value="{{ part.prefix }}" class="add-row" formnovalidate>{{ part.add_label }}</button>
+            {% endif %}
+          </div>
+        {% else %}
+          {% for hidden in part.hidden_fields %}{{ hidden }}{% endfor %}
+          {% for group_heading, group_note, fields in part.grouped_fields %}
+            {% if group_heading %}<h3 class="group-head">{{ group_heading }}</h3>{% endif %}
+            {% if group_note %}<p class="block-sub">{{ group_note }}</p>{% endif %}
+            <div class="grid">
+              {% for field in fields %}
+                {% include "intake/_application_field.html" %}
+              {% endfor %}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endfor %}
+    </section>
+
+    <div class="actions">
+      {% if step == step_count %}
+        <button class="submit" type="submit" id="submit-button">
+          {% translate "Submit Intake Securely" %}
+        </button>
+        <p class="submission-status" id="submission-status" role="status" aria-live="polite"></p>
+      {% else %}
+        <button class="submit" type="submit">{% translate "Continue" %}</button>
+      {% endif %}
+      {% if step > 1 %}
+        <p><a class="back-link" href="{% url 'application_step' step=step|add:'-1' %}">{% translate "Back" %}</a></p>
+      {% endif %}
+      <p>
+        <button type="submit" class="clear-answers" formaction="{% url 'application_clear' %}" formnovalidate>
+          {% translate "Start over and clear my answers" %}
+        </button>
+      </p>
+    </div>
+
+  </form>
+</div>
+
+{% if step == step_count %}
+{% translate "Submitting your intake securely..." as submitting_message %}
+<script>
+  (function () {
+    var form = document.getElementById("intake-form");
+    var button = document.getElementById("submit-button");
+    var status = document.getElementById("submission-status");
+
+    form.addEventListener("submit", function (e) {
+      if (e.submitter && e.submitter.classList.contains("clear-answers")) return;
+      button.disabled = true;
+      button.setAttribute("aria-disabled", "true");
+      form.setAttribute("aria-busy", "true");
+      status.textContent = "{{ submitting_message|escapejs }}";
+      status.classList.add("is-visible");
+    });
+  }());
+</script>
+{% endif %}
+{% endblock %}

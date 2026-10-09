@@ -1,12 +1,25 @@
 from django.conf import settings
+from django.db import transaction
 from django.forms import CheckboxInput
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import translation
+from django.views.decorators.http import require_POST
 
-from .forms import IntakeSubmissionForm
+from .forms import APPLICATION_STEPS, IntakeSubmissionForm
+from .models import IntakeApplication
+from .sessions import APPLICATION_SESSION_KEY
 
 SUPPORTED_LANGUAGE_CODES = {code for code, _name in settings.LANGUAGES}
+
+# Unsubmitted answers live in the session until final submit. Every request to the form
+# restarts this clock, so after 20 minutes without activity Django treats the session as
+# gone and the form comes back empty: the next person on the same browser never sees it.
+# The database row itself is deleted by `clearsessions` (run every 15 minutes by the
+# session-cleanup service in docker-compose.yml). The cookie also ends when the browser
+# closes; see intake/sessions.py. This applies to the whole browser session, so a case
+# manager who walks the form in their dashboard browser gets the same short login.
+APPLICATION_SESSION_TTL = 20 * 60
 
 
 def _valid_language(code: str | None) -> str:
@@ -79,3 +92,118 @@ def intake_form(request: HttpRequest) -> HttpResponse:
 
 def intake_success(request: HttpRequest) -> HttpResponse:
     return render(request, 'intake/intake_success.html')
+
+
+def _bind_step(step: int, data, application: IntakeApplication | None = None) -> list:
+    """The step's forms and formsets, bound to data, or unbound when data is None.
+
+    Scalar forms share `application`, so re-binding every step fills one instance.
+    """
+    bound = []
+    for form_class in APPLICATION_STEPS[step - 1][1]:
+        if getattr(form_class, 'is_formset', False):
+            bound.append(form_class(data))
+        else:
+            bound.append(form_class(data, instance=application))
+    return bound
+
+
+def _error_summary(forms: list) -> list[tuple[str, str, str]]:
+    """(field id, label, message) for every error on the step, formset rows included."""
+    summary = []
+    for part in forms:
+        if getattr(part, 'is_formset', False):
+            summary.extend(('', '', error) for error in part.non_form_errors())
+            rows = part.forms
+        else:
+            rows = [part]
+        for form in rows:
+            summary.extend(('', '', error) for error in form.non_field_errors())
+            for field in form:
+                summary.extend((field.auto_id, field.label, error) for error in field.errors)
+    return summary
+
+
+def application_start(request: HttpRequest) -> HttpResponse:
+    return redirect('application_step', step=1)
+
+
+def application_step(request: HttpRequest, step: int) -> HttpResponse:
+    step_count = len(APPLICATION_STEPS)
+    if not 1 <= step <= step_count:
+        raise Http404
+    stored = request.session.get(APPLICATION_SESSION_KEY, {})
+    for earlier in range(1, step):
+        if str(earlier) not in stored:
+            return redirect('application_step', step=earlier)
+    request.session.set_expiry(APPLICATION_SESSION_TTL)
+
+    errors = []
+    if request.method == 'POST':
+        add_row = request.POST.get('add_row')
+        if add_row:
+            # "Add another" re-renders with one more blank row and stores nothing.
+            data = request.POST.copy()
+            total_key = f'{add_row}-TOTAL_FORMS'
+            if data.get(total_key, '').isdigit():
+                data[total_key] = str(int(data[total_key]) + 1)
+            forms = _bind_step(step, data)
+        else:
+            forms = _bind_step(step, request.POST)
+            if all(form.is_valid() for form in forms):
+                stored[str(step)] = {
+                    key: value
+                    for key, value in request.POST.items()
+                    if key != 'csrfmiddlewaretoken'
+                }
+                request.session[APPLICATION_SESSION_KEY] = stored
+                if step < step_count:
+                    return redirect('application_step', step=step + 1)
+                return _save_application(request, stored)
+            errors = _error_summary(forms)
+    else:
+        forms = _bind_step(step, stored.get(str(step)))
+
+    return render(
+        request,
+        'intake/application_step.html',
+        {
+            'step': step,
+            'step_count': step_count,
+            'heading': APPLICATION_STEPS[step - 1][0],
+            'forms': forms,
+            'errors': errors,
+            'selected_language': translation.get_language(),
+        },
+    )
+
+
+@require_POST
+def application_clear(request: HttpRequest) -> HttpResponse:
+    """Start over: drop every stored answer, for an applicant walking away from the device."""
+    request.session.pop(APPLICATION_SESSION_KEY, None)
+    return redirect('application_step', step=1)
+
+
+def _save_application(request: HttpRequest, stored: dict) -> HttpResponse:
+    application = IntakeApplication()
+    formsets = []
+    for step in range(1, len(APPLICATION_STEPS) + 1):
+        forms = _bind_step(step, stored[str(step)], application)
+        # Every step validated when it was stored; this catches a tampered session.
+        if not all(form.is_valid() for form in forms):
+            return redirect('application_step', step=step)
+        formsets.extend(form for form in forms if getattr(form, 'is_formset', False))
+
+    with transaction.atomic():
+        application.language_preference = _valid_language(translation.get_language())
+        application.save()
+        for formset in formsets:
+            for position, row in enumerate(formset.save(commit=False)):
+                row.application = application
+                row.position = position
+                if formset.relationship:
+                    row.relationship = formset.relationship
+                row.save()
+    del request.session[APPLICATION_SESSION_KEY]
+    return redirect('intake_success')
